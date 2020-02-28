@@ -5,17 +5,14 @@ import Configuration from './Configuration';
 import {traverse} from './util';
 import { fixFilePathExtension, extractImportPathFromTextLine, getFileZeroLocationFromFilePath } from './util';
 
-export default class WebpackAliasDefinitionProvider implements vscode.DefinitionProvider {
+export default class WebpackAliasDefinitionProvider implements vscode.HoverProvider {
   private _workspaceDir: string;
   constructor(private readonly _configuration: Configuration) {
     this._workspaceDir = vscode.workspace.rootPath;
   }
-  provideDefinition(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken): Promise<vscode.Definition>{
-    // return this.importDefination(document, position);
+
+  provideHover(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken):Promise<vscode.Hover> {
     return this._getFileRealPosition(document, position);
-    return new Promise((res, rej) => {
-      return this._getFileRealPosition(document, position);
-    })
   }
 
   private _needJump(document: vscode.TextDocument, filePath: string): boolean {
@@ -33,7 +30,7 @@ export default class WebpackAliasDefinitionProvider implements vscode.Definition
     let realFilePath: string;
     if (pathObj && pathObj.range.contains(position)) {
       realFilePath = await this._tranformAliasPath(pathObj.path);
-      
+      console.log(realFilePath)
 
       // 由于 vscode 不能正确识别 vue 文件的正常导入, 所以此处添加对 vue 文件的正常引入支持
       // 由于 vscode 不能正确识别 less scss sass 文件的导入, 添加支持
@@ -43,16 +40,16 @@ export default class WebpackAliasDefinitionProvider implements vscode.Definition
     }
 
     if (realFilePath) {
-      realFilePath = await fixFilePathExtension(realFilePath, this._workspaceDir);
+      realFilePath = await fixFilePathExtension(realFilePath, this._workspaceDir)
     }
-    console.log(realFilePath)
     return realFilePath;
   }
 
   private async _getFileRealPosition(document: vscode.TextDocument, position: vscode.Position) {
     let realFilePath = await this._getAbsoluteFilePath(document, position);
     if (realFilePath) {
-      return getFileZeroLocationFromFilePath(realFilePath)
+      // return getFileZeroLocationFromFilePath(realFilePath)
+      return new vscode.Hover(`module "${realFilePath}"`)
     };
   }
 
@@ -78,36 +75,4 @@ export default class WebpackAliasDefinitionProvider implements vscode.Definition
     }
   }
 
-  /**
-   * forked from https://github.com/IWANABETHATGUY/vscode-path-alias
-   */
-  private async importDefination(document: vscode.TextDocument, position: vscode.Position) {
-
-    let realFilePath = await this._getAbsoluteFilePath(document, position);
-    if (realFilePath) {
-      const reg = /\w+/;
-      const wordRange = document.getWordRangeAtPosition(position, reg);
-      if (!wordRange) {
-        return null;
-      }
-      const word = document.getText(wordRange);
-
-      const file = fs.readFileSync(realFilePath, {
-        encoding: 'utf8'
-      });
-      const exportIdentifierList = traverse(realFilePath, file);
-      const retDefination = exportIdentifierList.filter(
-        token => token.identifier === word
-      )[0];
-      if (retDefination) {
-          return new vscode.Location(
-            vscode.Uri.file(realFilePath),
-            new vscode.Position(
-              retDefination.position.line,
-              retDefination.position.character
-            )
-          );
-      }
-    };
-  }
 }

@@ -1,9 +1,10 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-const excludePaths = ['test', 'node_modules'];
-
+import {excludePaths} from '../../constants';
+import { ModuleBundlerAliasSearcher } from '../ModuleBundlerAliasSearcher';
 type webpackConfigPaths = {webpackConfigPath:string, projectDir:string}[];
+import {ConfigPaths, Alias, WebpackAlias} from '../../types';
 /**
  * 自动寻找 webpack alias 算法
  *
@@ -14,30 +15,32 @@ type webpackConfigPaths = {webpackConfigPath:string, projectDir:string}[];
  * 遍历 package.json 中的 script, 找出 webpack 命令使用到的 config 文件
  * 如果没有找到 webpack config 文件, 启用搜寻当前目录下的所有 webpack 开发的文件, 提取出 alias
  */
-export default class WebpackAliasSearcher {
-  private _projects: Map<string, { pkg: any }> = new Map();
-  constructor(private readonly _workspaceDir: string) {
+export default class WebpackAliasSearcher extends ModuleBundlerAliasSearcher {
+  protected _projects: Map<string, { pkg: any }> = new Map();
+  constructor(protected readonly _workspaceDir: string) {
+    super(_workspaceDir);
     try {
       const rootWorkspacePackagePath = path.join(this._workspaceDir, 'package.json');
       if (fs.existsSync(rootWorkspacePackagePath)) {
         this._setProject(rootWorkspacePackagePath);
       } else {
-        const files = fs.readdirSync(this._workspaceDir).filter(f => {
-          if (excludePaths.indexOf(f) > -1) return false;
-          if (f.includes('.')) return false;
-          return true;
-        });
-        for (let file of files) {
-          const subWorkspacePackagePath = path.join(this._workspaceDir, file, 'package.json');
-          if (fs.existsSync(subWorkspacePackagePath)) {
-            this._setProject(subWorkspacePackagePath);
-          }
-        }
+        // 不需要迭代，而且这里很耗内存
+        // const files = fs.readdirSync(this._workspaceDir).filter(f => {
+        //   if (excludePaths.indexOf(f) > -1) return false;
+        //   if (f.includes('.')) return false;
+        //   return true;
+        // });
+        // for (let file of files) {
+        //   const subWorkspacePackagePath = path.join(this._workspaceDir, file, 'package.json');
+        //   if (fs.existsSync(subWorkspacePackagePath)) {
+        //     this._setProject(subWorkspacePackagePath);
+        //   }
+        // }
       }
     } catch (error) {
     }
   }
-  private _setProject(pkgPath: string) {
+  protected _setProject(pkgPath: string) {
     let pkg = require(pkgPath);
     if (
       (pkg.dependencies && pkg.dependencies.webpack) ||
@@ -47,23 +50,24 @@ export default class WebpackAliasSearcher {
     }
   }
   getDefaultAlias() {
-    let alias: any = {};
+    let alias: WebpackAlias = {};
     try {
       if (this._projects.size) {
-        let webpackConfigPaths = this._getWebpackConfigPathsFromPackage();
-        webpackConfigPaths.push(...this._getWebpackConfigsFromFileSearch());
-        let webpackConfigs = this._getWebpackConfigs(webpackConfigPaths);
+        let webpackConfigPaths = this._getConfigPathsFromPackage();
+        webpackConfigPaths.push(...this._getConfigsFromFileSearch());
+        let webpackConfigs = this._getConfigs(webpackConfigPaths);
         if (webpackConfigs.length) {
-          alias = this._getAliasFromWebpackConfigs(webpackConfigs);
+          alias = this._getAliasFromModuleBundlerConfigs(webpackConfigs);
         }
       }
     } catch (error) {
     }
     return alias;
   }
-  private _getWebpackConfigs(webpackConfigPaths: webpackConfigPaths) {
+  protected _getConfigs(webpackConfigPaths: ConfigPaths) {
     let newWebpackConfigPaths: Map<string, string> = new Map();
-    for (const {webpackConfigPath, projectDir} of webpackConfigPaths) {
+    for (const {configPath, projectDir} of webpackConfigPaths) {
+      const webpackConfigPath = configPath
       newWebpackConfigPaths.set(webpackConfigPath, projectDir);
     }
     let webpackConfigs: any[] = [];
@@ -82,20 +86,20 @@ export default class WebpackAliasSearcher {
     }
     return webpackConfigs;
   }
-  private _getWebpackConfigPathsFromPackage() {
-    let webpackConfigPaths: webpackConfigPaths = [];
+  protected _getConfigPathsFromPackage() {
+    let webpackConfigPaths: ConfigPaths = [];
     for(let [projectDir, { pkg }] of this._projects) {
       for (let key of Object.keys(pkg.scripts || {})) {
         const script = pkg.scripts[key];
-        let webpackConfigPath = this._getWebpackConfigPathsFromScript(script, projectDir);
+        let webpackConfigPath = this._getConfigPathsFromScript(script, projectDir);
         if (webpackConfigPath) {
-          webpackConfigPaths.push({ webpackConfigPath, projectDir });
+          webpackConfigPaths.push({ configPath: webpackConfigPath, projectDir });
         }
       }
     }
     return webpackConfigPaths;
   }
-  private _getWebpackConfigPathsFromScript(script: string, projectDir: string) {
+  protected _getConfigPathsFromScript(script: string, projectDir: string) {
     let tokens = script.split(' ').filter(t => t);
     const webpackIndex = tokens.indexOf('webpack');
     if (webpackIndex > -1) {
@@ -110,8 +114,8 @@ export default class WebpackAliasSearcher {
       return webpackConfigPath;
     }
   }
-  private _getAliasFromWebpackConfigs(webpackConfigs: any[]) {
-    let alias = {};
+  protected _getAliasFromModuleBundlerConfigs(webpackConfigs: any[]) {
+    let alias: WebpackAlias = {};
     for(let webpackConfig of webpackConfigs) {
       if (webpackConfig.resolve && webpackConfig.resolve.alias && typeof webpackConfig.resolve.alias === 'object') {
         Object.assign(alias, webpackConfig.resolve.alias);
@@ -119,17 +123,17 @@ export default class WebpackAliasSearcher {
     }
     return alias;
   }
-  private _getWebpackConfigsFromFileSearch() {
-    let webpackConfigPaths: webpackConfigPaths = [];
+  protected _getConfigsFromFileSearch() {
+    let webpackConfigPaths: ConfigPaths = [];
     for(let [projectDir, { pkg }] of this._projects) {
-      let webpackConfigPath = this._traverseGetWebpackConfigsFromFileSearch(projectDir);
+      let webpackConfigPath = this._traverseGetModuleBundlerConfigsFromFileSearch(projectDir);
       if (webpackConfigPath.length) {
-        webpackConfigPaths.push(...webpackConfigPath.map(t => ({webpackConfigPath: t, projectDir})));
+        webpackConfigPaths.push(...webpackConfigPath.map(t => ({configPath: t, projectDir})));
       }
     }
     return webpackConfigPaths;
   }
-  private _traverseGetWebpackConfigsFromFileSearch(filePath: string, deep = 1, maxDeep = 5) {
+  protected _traverseGetModuleBundlerConfigsFromFileSearch(filePath: string, deep = 1, maxDeep = 5) {
     if (deep > maxDeep) {
       return [];
     }
@@ -151,19 +155,19 @@ export default class WebpackAliasSearcher {
 
     let webpackConfigPaths: string[] = [];
     for (let file of files) {
-      let webpackConfigPath = this._getWebpackConfigFromFilePath(path.join(filePath, file));
+      let webpackConfigPath = this._getConfigPathFromFilePath(path.join(filePath, file));
       if (webpackConfigPath) {
         webpackConfigPaths.push(webpackConfigPath);
       }
     }
 
     for(let dir of dirs) {
-      let subWebpackConfigPaths = this._traverseGetWebpackConfigsFromFileSearch(path.join(filePath, dir), deep + 1);
+      let subWebpackConfigPaths = this._traverseGetModuleBundlerConfigsFromFileSearch(path.join(filePath, dir), deep + 1);
       webpackConfigPaths.push(...subWebpackConfigPaths);
     }
     return webpackConfigPaths;
   }
-  private _getWebpackConfigFromFilePath(filePath: string) {
+  protected _getConfigPathFromFilePath(filePath: string) {
     const tokens = filePath.split('/');
     const fileName = tokens[tokens.length - 1];
     if (/^webpack\..*\.js$/.test(fileName)) {

@@ -1,7 +1,7 @@
 {
-  "name": "jump-to-alias-file",
-  "displayName": "Jump To Alias File",
-  "version": "1.0.9",
+  "name": "module-bundler-alias-file",
+  "displayName": "moduleBundlerAliasFile",
+  "version": "1.0.0",
   "publisher": "wanfu",
   "engines": {
     "vscode": "^1.18.0"
@@ -9,14 +9,14 @@
   "icon": "favicon.ico",
   "repository": {
     "type": "git",
-    "url": "https://github.com/wanfu920/jumpToAliasFile"
+    "url": "https://github.com/Albert-cord/jumpToAliasFile"
   },
   "categories": [
     "Programming Languages"
   ],
   "keywords": [
     "go to definition",
-    "webpack alias",
+    "moduleBundlerAliasFile",
     "jump to alias file",
     "jump"
   ],
@@ -33,15 +33,28 @@
   "contributes": {
     "configuration": {
       "type": "object",
-      "title": "jumpToAliasFile setting",
+      "title": "moduleBundlerAliasFile setting",
       "properties": {
-        "jumpToAliasFile.alias": {
+        "moduleBundlerAliasFile.allLiteralAlias": {
           "type": "object",
           "default": {},
           "scope": "resource",
-          "description": "同 webpack resolve.alias 配置"
+          "description": "字面量Alias设置，同 webpack resolve.alias 配置"
         },
-        "jumpToAliasFile.webpeckConfigPath": {
+        "moduleBundlerAliasFile.rollupAlias": {
+          "type": "array",
+          "default": [],
+          "scope": "resource",
+          "description": "由于rollup采用resolveId函数获取id无法字面量定义",
+          "readOnly": true
+        },
+        "moduleBundlerAliasFile.rollupConfigPath": {
+          "type": "string",
+          "default": "",
+          "scope": "resource",
+          "description": "rollup config 路径"
+        },
+        "moduleBundlerAliasFile.webpeckConfigPath": {
           "type": "string",
           "default": "",
           "scope": "resource",
@@ -52,6 +65,7 @@
   },
   "devDependencies": {
     "@types/node": "^6.0.40",
+    "slash": "^3.0.0",
     "tslint": "^5.11.0",
     "typescript": "^2.1.4",
     "vscode": "^1.1.17"

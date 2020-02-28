@@ -9,8 +9,9 @@
 			"name": "Run Extension",
 			"type": "extensionHost",
 			"request": "launch",
-			"runtimeExecutable": "${execPath}",
+      "runtimeExecutable": "D:\\vue_relative_folder\\Wheel-Maker\\Wheel-Maker-MVVM",
 			"args": [
+        "--disable-extensions",
 				"--extensionDevelopmentPath=${workspaceFolder}"
 			],
 			"outFiles": [

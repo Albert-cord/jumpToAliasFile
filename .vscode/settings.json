@@ -2,5 +2,11 @@
 	"editor.insertSpaces": true,
 	"editor.tabSize": 2,
   "editor.detectIndentation": false,
-  "jumpToAliasFile.alias": {}
+  "moduleBundlerAliasFile": {
+    "allLiteralAlias": {},
+    "rollupConfigPath": "",
+    "webpeckConfigPath": ""
+  },
+
+  "workspaceFolder": "D:\\vue_relative_folder\\Wheel-Maker\\Wheel-Maker-MVVM"
 }
